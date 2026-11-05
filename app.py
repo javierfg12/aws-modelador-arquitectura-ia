@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 st.set_page_config(
     page_title="Modelador AWS para IA",
@@ -199,8 +198,8 @@ pii_nota = (
 
 st.info(
     f"**Sector:** {datos['sector']}  \n"
-    f"**Problema operativo:** Asistente interno para el área de siniestros — búsqueda documental, "
-    f"borradores de respuesta y apoyo a gestores humanos.  \n"
+    f"**Problema operativo:** Asistente interno para búsqueda documental, borradores de respuesta "
+    f"y apoyo a gestores del sector {datos['sector'] or 'no especificado'}.  \\n"
     f"**Criterio dominante:** {modo.capitalize()}, con restricciones de latencia "
     f"(≤{datos['latencia_max_seg']} s), presupuesto {datos['presupuesto'].lower()} "
     f"y disponibilidad {datos['disponibilidad_objetivo'].lower()}.{pii_nota}"
@@ -243,16 +242,20 @@ st.divider()
 
 # ── 6. REFLEXIÓN DEL EQUIPO ───────────────────
 st.subheader("💬 6. Reflexión del equipo")
+motor_inferencia = "Amazon Bedrock" if datos["preferencia_estrategica"] == "Gestionado" else "Amazon SageMaker"
+tradeoff_pii = (
+    "La presencia de PII exige controles estrictos y puede aumentar la latencia percibida. "
+    "Calibra el escalado a gestor humano con datos del piloto."
+    if datos["pii"] else
+    "Aunque no se ha indicado PII, deben mantenerse controles de acceso, cifrado y auditoría."
+)
+variabilidad_texto = datos["variabilidad_demanda"].lower()
 st.success(
-    "**Decisión principal:** Se adopta Amazon Bedrock como motor de inferencia "
-    "por la preferencia estratégica 'Gestionado', priorizando velocidad de despliegue "
-    "y menor carga operativa sobre control total del modelo.  \n\n"
-    "**Trade-off aceptado:** Se asume menor personalización del modelo a cambio de "
-    "mayor agilidad operativa y reducción del overhead de MLOps.  \n\n"
-    "**Riesgo crítico:** La presencia de PII obliga a controles estrictos que pueden "
-    "aumentar la latencia percibida. El equipo deberá calibrar el umbral de escalado "
-    "a gestor humano para no degradar la experiencia.  \n\n"
-    "**Mejora para la siguiente iteración:** Validar con pruebas de carga reales "
-    "si la latencia p95 se mantiene ≤4 s con los controles de seguridad activos, "
-    "y explorar si la variabilidad media justifica activar auto-scaling proactivo."
+    f"**Decisión principal:** Se propone {motor_inferencia} según la preferencia "
+    f"estratégica seleccionada ({datos['preferencia_estrategica']}).  \\n\\n"
+    f"**Trade-off aceptado:** {recomendar_tradeoff(datos['preferencia_estrategica'], datos['pii'], datos['presupuesto'])}  \\n\\n"
+    f"**Riesgo y control:** {tradeoff_pii}  \\n\\n"
+    f"**Siguiente validación:** Ejecutar pruebas de carga para comprobar que la latencia p95 "
+    f"se mantiene ≤{datos['latencia_max_seg']} s con los controles activos y revisar el "
+    f"autoescalado según la variabilidad {variabilidad_texto} de la demanda."
 )
