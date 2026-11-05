@@ -3,6 +3,7 @@
 Aplicación Streamlit didáctica que convierte parámetros de un caso empresarial en una propuesta lógica de arquitectura AWS. El caso inicial es una aseguradora con un asistente documental para el área de siniestros.
 
 ## Funcionalidades
+- Reglas de recomendación aisladas y testeables en `recommendations.py`.
 - Recomendaciones por capas: datos, integración, inferencia, aplicación, seguridad y observabilidad.
 - Adaptación de la clasificación documental según sector, volumen y presencia de PII.
 - Matriz RAGA con riesgos y mitigaciones.
@@ -14,6 +15,14 @@ Aplicación Streamlit didáctica que convierte parámetros de un caso empresaria
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+## Pruebas automatizadas
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Las pruebas cubren la selección de servicios, sensibilidad de datos, sector, concurrencia, latencia, variabilidad, presupuesto y objetivos de recuperación.
 
 ## Parámetros del caso base
 | Variable | Valor |
