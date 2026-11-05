@@ -21,6 +21,8 @@ CASO_BASE = {
     "variabilidad_demanda": "Media",
     "preferencia_estrategica": "Gestionado",
     "disponibilidad_objetivo": "Alta",
+    "rto_horas": 4,
+    "rpo_horas": 1,
 }
 
 # ─────────────────────────────────────────────
@@ -59,17 +61,19 @@ def recomendar_seguridad(pii, presupuesto):
     )
 
 
-def recomendar_datos(documentos_diarios, pii):
+def recomendar_datos(documentos_diarios, pii, sector):
     """Capa de datos adaptada al volumen y sensibilidad."""
+    sector_norm = sector.strip().lower()
+    categoria = "tipo de siniestro" if any(term in sector_norm for term in ("asegur", "financ", "banca")) else "tipo documental"
     if documentos_diarios > 10000 and pii:
         return (
-            "S3 con clasificación automática (Macie) para documentos sensibles. "
-            "Particionado por fecha y tipo de siniestro. "
-            "Ciclo de vida definido para retención y borrado."
+            "S3 con clasificación de datos sensibles (evaluar Amazon Macie según alcance y coste). "
+            f"Particionado por fecha y {categoria}. "
+            "Definir política de retención, borrado y acceso por expediente."
         )
     if documentos_diarios > 10000:
         return (
-            "S3 con particionado por fecha/tipo. "
+            f"S3 con particionado por fecha y {categoria}. "
             "Ingesta a través de AWS Glue para normalización documental."
         )
     return "S3 estándar con catálogo básico en AWS Glue."
@@ -118,20 +122,22 @@ def recomendar_observabilidad(variabilidad_demanda, presupuesto):
 
     if presupuesto == "Bajo":
         obs += (
-            " FinOps: uso de Savings Plans y revisión mensual de recursos "
-            "infrautilizados para evitar sobredimensionamiento."
+            " FinOps: AWS Budgets, Cost Anomaly Detection y revisión de rightsizing. "
+            "Evaluar Savings Plans solo para cómputo elegible con demanda estable y tras analizar el uso."
         )
     return obs
 
 
-def recomendar_aplicacion(disponibilidad_objetivo):
+def recomendar_aplicacion(disponibilidad_objetivo, rto_horas, rpo_horas):
     """Regla 9: alta/muy alta disponibilidad → resiliencia explícita."""
     base = "Interfaz web interna para gestores y analistas (React o Streamlit interno)."
     if disponibilidad_objetivo in ("Alta", "Muy alta"):
         base += (
             f" Dado el objetivo '{disponibilidad_objetivo}', el despliegue debe "
-            "contemplar multi-AZ, health checks y plan de recuperación ante fallos (RTO/RPO definidos)."
+            f"contemplar multi-AZ, health checks y objetivos explícitos: RTO ≤{rto_horas} h y RPO ≤{rpo_horas} h."
         )
+    else:
+        base += f" Definir y probar objetivos de recuperación: RTO ≤{rto_horas} h y RPO ≤{rpo_horas} h."
     return base
 
 
@@ -168,7 +174,7 @@ def recomendar_tradeoff(preferencia_estrategica, pii, presupuesto):
 def generar_capas(datos):
     return {
         "1. Datos": recomendar_datos(
-            datos["documentos_diarios"], datos["pii"]
+            datos["documentos_diarios"], datos["pii"], datos["sector"]
         ),
         "2. Integración": recomendar_integracion(
             datos["latencia_max_seg"], datos["usuarios_simultaneos"]
@@ -177,7 +183,7 @@ def generar_capas(datos):
             datos["preferencia_estrategica"]
         ),
         "4. Aplicación": recomendar_aplicacion(
-            datos["disponibilidad_objetivo"]
+            datos["disponibilidad_objetivo"], datos["rto_horas"], datos["rpo_horas"]
         ),
         "5. Seguridad y Gobierno": recomendar_seguridad(
             datos["pii"], datos["presupuesto"]
@@ -204,7 +210,7 @@ def generar_riesgos(datos):
         },
         {
             "Riesgo": "Sobrecoste de inferencia por variabilidad de demanda",
-            "Mitigación": "Alertas de consumo (AWS Budgets), revisión quincenal y Savings Plans.",
+            "Mitigación": "AWS Budgets, Cost Anomaly Detection, límites de gasto y revisión periódica del consumo.",
             "Rol responsable": "FinOps / Responsable de Operación",
             "Acción inmediata": "Establecer presupuesto mensual y umbral de alerta.",
         },
@@ -234,6 +240,16 @@ def generar_slos(datos):
             "Indicador": "Tasa de escalado a gestor humano",
             "Valor objetivo": "< 15 % de consultas",
             "Cómo medirlo": "Métrica personalizada en CloudWatch desde la lógica de la app",
+        },
+        {
+            "Indicador": "RTO (tiempo máximo de recuperación)",
+            "Valor objetivo": f"≤ {datos['rto_horas']} h",
+            "Cómo medirlo": "Ejercicios de recuperación y registro de incidentes",
+        },
+        {
+            "Indicador": "RPO (pérdida máxima de datos)",
+            "Valor objetivo": f"≤ {datos['rpo_horas']} h",
+            "Cómo medirlo": "Pruebas de restauración y validación de backups",
         },
     ]
     return pd.DataFrame(slos)
@@ -271,6 +287,8 @@ preferencia_estrategica = st.sidebar.selectbox(
 disponibilidad_objetivo = st.sidebar.selectbox(
     "Disponibilidad objetivo", ["Media", "Alta", "Muy alta"], index=1
 )
+rto_horas = st.sidebar.number_input("RTO objetivo (horas)", min_value=0, value=CASO_BASE["rto_horas"], step=1)
+rpo_horas = st.sidebar.number_input("RPO objetivo (horas)", min_value=0, value=CASO_BASE["rpo_horas"], step=1)
 
 datos = {
     "sector": sector,
@@ -282,6 +300,8 @@ datos = {
     "variabilidad_demanda": variabilidad_demanda,
     "preferencia_estrategica": preferencia_estrategica,
     "disponibilidad_objetivo": disponibilidad_objetivo,
+    "rto_horas": rto_horas,
+    "rpo_horas": rpo_horas,
 }
 
 # ─────────────────────────────────────────────
